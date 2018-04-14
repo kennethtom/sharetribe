@@ -4,8 +4,10 @@ MAINTAINER Sharetribe Team <team@sharetribe.com>
 
 ENV REFRESHED_AT 2016-11-08
 
-RUN apt-get update \
-    && apt-get dist-upgrade -y
+RUN set -ex \
+  && echo 'deb http://deb.debian.org/debian jessie-backports main' > /etc/apt/sources.list.d/jessie-backports.list \
+  && apt-get update \
+  && apt-get dist-upgrade -y
 
 #
 # Node (based on official docker node image)
@@ -44,10 +46,10 @@ RUN curl -SLO "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-
 #
 
 # Install nginx - used to serve maintenance mode page
-RUN apt-get install -y nginx
-
-# Install latest bundler
-RUN gem install bundler
+#   & mysql-client for rake db scripts
+#   & sphinxsearch for full text search
+RUN apt-get install -y nginx mysql-client \
+  && apt-get -t jessie-backports install -y sphinxsearch
 
 # Run as non-privileged user
 RUN useradd -m -s /bin/bash app \
@@ -55,14 +57,14 @@ RUN useradd -m -s /bin/bash app \
 
 WORKDIR /opt/app
 
-COPY Gemfile /opt/app
-COPY Gemfile.lock /opt/app
+COPY Gemfile Gemfile.lock /opt/app/
 
 ENV RAILS_ENV production
 
 USER app
 
-RUN bundle install --deployment --without test,development
+RUN gem install bundler \
+    && bundle install --deployment --without test,development
 
 COPY package.json /opt/app/
 COPY client/package.json /opt/app/client/
@@ -72,8 +74,10 @@ ENV NODE_ENV production
 ENV NPM_CONFIG_LOGLEVEL error
 ENV NPM_CONFIG_PRODUCTION true
 
+WORKDIR /opt/app/client
 RUN npm install
 
+WORKDIR /opt/app
 COPY . /opt/app
 
 EXPOSE 3000
@@ -95,7 +99,9 @@ RUN mkdir -p \
        app/assets/webpack \
        client/app/ \
        public/assets \
-       public/webpack
+       public/webpack \
+       config \
+       db
 USER app
 
 # If assets.tar.gz file exists in project root

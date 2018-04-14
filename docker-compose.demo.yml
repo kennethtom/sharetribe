@@ -1,0 +1,91 @@
+version: "3"
+
+networks:
+  net:
+
+volumes:
+  mysql_data:
+  sphinx_data:
+
+services:
+  mysql:
+    image: mysql/mysql-server:5.7
+    networks:
+      - net
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  memcache:
+    image: memcached
+    networks:
+      - net
+    ports:
+      - "11211:11211"
+    command: -v
+
+  sphinx:
+    image: sharetribe
+    depends_on:
+      - mysql
+    networks:
+      - net
+    ports:
+      - "3564:3564"
+    volumes:
+      - ./config/config.yml:/opt/app/config/config.yml
+      - ./config/database.yml:/opt/app/config/database.yml
+    command: bundle exec rake ts:index ts:start
+    environment:
+      - NODETACH=true
+    
+  webapp:
+    image: sharetribe
+    depends_on:
+      - mysql
+      - memcache
+      - sphinx
+      - worker
+    networks:
+      - net
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config/config.yml:/opt/app/config/config.yml
+      - ./config/database.yml:/opt/app/config/database.yml
+    environment:
+      - MEMCACHIER_GREEN_SERVERS=memcache
+      - MEMCACHIER_GREEN_USERNAME=
+      - MEMCACHIER_GREEN_PASSWORD=
+      - SPHINX_HOST=sphinx
+
+  worker:
+    image: sharetribe
+    depends_on:
+      - mysql
+      - memcache
+      - sphinx
+    networks:
+      - net
+    volumes:
+      - ./config/config.yml:/opt/app/config/config.yml
+      - ./config/database.yml:/opt/app/config/database.yml
+    command: bundle exec rake jobs:work
+    environment:
+      - MEMCACHIER_GREEN_SERVERS=memcache
+      - MEMCACHIER_GREEN_USERNAME=
+      - MEMCACHIER_GREEN_PASSWORD=
+      - SPHINX_HOST=sphinx
+      - QUEUES=default,paperclip,mailers
+      - MAGICK_MAP_LIMIT=64MiB
+      - MAGICK_MEMORY_LIMIT=256MiB
+      - MAGICK_TIME_LIMIT=30
+
+  smtp:
+    image: mailhog/mailhog
+    networks:
+      - net
+    ports:
+      - "1025:1015"
+      - "8025:8025"

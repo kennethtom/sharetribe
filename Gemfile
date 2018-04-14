@@ -32,7 +32,7 @@ gem 'dalli', '~> 2.7.6'
 gem "memcachier", '~> 0.0.2'
 gem 'readthis', '~> 2.0.2'
 gem 'hiredis', '~> 0.6.1'
-gem 'thinking-sphinx', '~> 3.3.0'
+gem 'thinking-sphinx', '>= 3.4.2'
 gem 'flying-sphinx', '~> 1.2.0'
 # Use patched v2.0.2
 # Fixes issues: Create a new delayed delta job if there is an existing delta job which has failed
