@@ -1,0 +1,62 @@
+# install
+#   ruby 2.3.4
+FROM ruby:2.3.4
+
+WORKDIR /opt/app
+  
+RUN useradd --create-home --shell /bin/bash app \
+  && chown --recursive app:app /opt/app
+
+# install
+#   mysql-client 5.5.59
+#   sphinx 2.2.9
+#   imagemagick 6.8.9
+#   nginx 1.6.2
+RUN echo "deb http://ftp.nz.debian.org/debian jessie-backports main" > /etc/apt/sources.list.d/jessie-backports.list \
+  && DEBIAN_FRONTEND=noninteractive \
+     apt-get update \
+  && apt-get install -y \
+      mysql-client \
+      sphinxsearch \
+      imagemagick \
+      nginx
+
+USER app
+
+# install
+#   bundler
+#   rubygems
+COPY Gemfile .
+COPY Gemfile.lock .
+ENV RAILS_ENV production
+RUN gem install bundler \
+  && bundle install --deployment --without test,development
+
+# install
+#   nodejs 7.8
+#   npm packages
+RUN mkdir client \
+            client/customloaders \
+            client/customloaders/customfileloader
+COPY package.json .
+COPY client/package.json ./client/
+COPY client/customloaders/customfileloader ./client/customloaders/customfileloader
+ENV NODE_VERSION 7.8
+ENV NODE_ENV production
+RUN ["/bin/bash", "-c", \
+      "curl -o- https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash \
+        && source ~/.nvm/nvm.sh \
+        && nvm install $NODE_VERSION \
+        && nvm alias default $NODE_VERSION \
+        && nvm use default \
+        && npm install"]
+
+COPY --chown=app:app . .
+
+RUN ["/bin/bash", "-c", \
+      "source ~/.nvm/nvm.sh \
+        && script/prepare-assets.sh"]
+
+CMD ["script/startup.sh"]
+
+EXPOSE 3000
