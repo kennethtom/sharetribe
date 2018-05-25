@@ -1,4 +1,4 @@
-version: "3"
+version: "3.2"
 
 networks:
   net:
@@ -6,6 +6,7 @@ networks:
 volumes:
   mysql_data:
   sphinx_data:
+  webapp_data:
 
 services:
   mysql:
@@ -36,9 +37,18 @@ services:
     volumes:
       - ./config/config.yml:/opt/app/config/config.yml
       - ./config/database.yml:/opt/app/config/database.yml
-    command: bundle exec rake ts:index ts:start
+      - sphinx_data:/opt/app/db/sphinx
+      - webapp_data:/opt/app/public/system
+      - ./Procfile.demo:/opt/app/Procfile
+    # command: bundle exec rake ts:index ts:start
+    command: foreman start
     environment:
+      - SPHINX_HOST=
       - NODETACH=true
+      - QUEUES=default,paperclip,mailers
+      - MAGICK_MAP_LIMIT=64MiB
+      - MAGICK_MEMORY_LIMIT=256MiB
+      - MAGICK_TIME_LIMIT=30
     
   webapp:
     image: sharetribe
@@ -54,6 +64,8 @@ services:
     volumes:
       - ./config/config.yml:/opt/app/config/config.yml
       - ./config/database.yml:/opt/app/config/database.yml
+      - sphinx_data:/opt/app/db/sphinx
+      - webapp_data:/opt/app/public/system
     environment:
       - MEMCACHIER_GREEN_SERVERS=memcache
       - MEMCACHIER_GREEN_USERNAME=
@@ -64,18 +76,17 @@ services:
     image: sharetribe
     depends_on:
       - mysql
-      - memcache
       - sphinx
     networks:
       - net
     volumes:
       - ./config/config.yml:/opt/app/config/config.yml
       - ./config/database.yml:/opt/app/config/database.yml
-    command: bundle exec rake jobs:work
+      - sphinx_data:/opt/app/db/sphinx
+      - webapp_data:/opt/app/public/system
+    # command: bundle exec rake jobs:work
+    command: ["true"]
     environment:
-      - MEMCACHIER_GREEN_SERVERS=memcache
-      - MEMCACHIER_GREEN_USERNAME=
-      - MEMCACHIER_GREEN_PASSWORD=
       - SPHINX_HOST=sphinx
       - QUEUES=default,paperclip,mailers
       - MAGICK_MAP_LIMIT=64MiB
