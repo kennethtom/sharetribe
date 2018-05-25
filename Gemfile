@@ -171,3 +171,6 @@ gem 'intercom'
 gem 'twitter_cldr'
 gem 'memoist'
 gem 'biz'
+
+# Using Foreman to run sphinx and worker on the same host
+gem 'foreman'
