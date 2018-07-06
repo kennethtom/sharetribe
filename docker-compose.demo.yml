@@ -1,27 +1,23 @@
-version: "3.2"
-
-networks:
-  net:
+version: "3"
 
 volumes:
-  mysql_data:
-  sphinx_data:
-  webapp_data:
+  mysql_data: {}
+  sphinx_data: {}
+  webapp_data: {}
+  webapp_log: {}
 
 services:
   mysql:
     image: mysql/mysql-server:5.7
-    networks:
-      - net
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    environment:
+      - MYSQL_LOG_CONSOLE=true
 
   memcache:
     image: memcached
-    networks:
-      - net
     ports:
       - "11211:11211"
     command: -v
@@ -30,73 +26,56 @@ services:
     image: sharetribe
     depends_on:
       - mysql
-    networks:
-      - net
     ports:
       - "3564:3564"
     volumes:
-      - ./config/config.yml:/opt/app/config/config.yml
-      - ./config/database.yml:/opt/app/config/database.yml
+      - ./config/config.yml:/opt/app/config/config.yml:ro
+      - ./config/database.yml:/opt/app/config/database.yml:ro
       - sphinx_data:/opt/app/db/sphinx
       - webapp_data:/opt/app/public/system
-      - ./Procfile.demo:/opt/app/Procfile
+      - webapp_log:/opt/app/log
+      - ./Procfile.demo:/opt/app/Procfile:ro
     # command: bundle exec rake ts:index ts:start
     command: foreman start
     environment:
-      - SPHINX_HOST=
+      # - SPHINX_HOST=
       - NODETACH=true
       - QUEUES=default,paperclip,mailers
       - MAGICK_MAP_LIMIT=64MiB
       - MAGICK_MEMORY_LIMIT=256MiB
       - MAGICK_TIME_LIMIT=30
+      - NEW_RELIC_AGENT_ENABLED=false
     
+  smtp:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1015"
+      - "8025:8025"
+
   webapp:
     image: sharetribe
     depends_on:
       - mysql
       - memcache
       - sphinx
-      - worker
-    networks:
-      - net
+      - smtp
     ports:
       - "3000:3000"
     volumes:
-      - ./config/config.yml:/opt/app/config/config.yml
-      - ./config/database.yml:/opt/app/config/database.yml
+      - ./config/config.yml:/opt/app/config/config.yml:ro
+      - ./config/database.yml:/opt/app/config/database.yml:ro
       - sphinx_data:/opt/app/db/sphinx
       - webapp_data:/opt/app/public/system
+      - webapp_log:/opt/app/log
+      - ../cert:/cert
     environment:
       - MEMCACHIER_GREEN_SERVERS=memcache
-      - MEMCACHIER_GREEN_USERNAME=
-      - MEMCACHIER_GREEN_PASSWORD=
+      # - MEMCACHIER_GREEN_USERNAME=
+      # - MEMCACHIER_GREEN_PASSWORD=
       - SPHINX_HOST=sphinx
-
-  worker:
-    image: sharetribe
-    depends_on:
-      - mysql
-      - sphinx
-    networks:
-      - net
-    volumes:
-      - ./config/config.yml:/opt/app/config/config.yml
-      - ./config/database.yml:/opt/app/config/database.yml
-      - sphinx_data:/opt/app/db/sphinx
-      - webapp_data:/opt/app/public/system
-    # command: bundle exec rake jobs:work
-    command: ["true"]
-    environment:
-      - SPHINX_HOST=sphinx
-      - QUEUES=default,paperclip,mailers
-      - MAGICK_MAP_LIMIT=64MiB
-      - MAGICK_MEMORY_LIMIT=256MiB
-      - MAGICK_TIME_LIMIT=30
-
-  smtp:
-    image: mailhog/mailhog
-    networks:
-      - net
-    ports:
-      - "1025:1015"
-      - "8025:8025"
+      # - PASSENGER_MIN_INSTANCES=
+      # - PASSENGER_MAX_POOL_SIZE=
+      - NEW_RELIC_AGENT_ENABLED=false
+      - PASSENGER_SSL=true
+      - PASSENGER_SSL_CERTIFICATE=/cert/lvh.me.crt
+      - PASSENGER_SSL_CERTIFICATE_KEY=/cert/lvh.me.key
