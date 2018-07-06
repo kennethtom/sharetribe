@@ -1,0 +1,13 @@
+steps:
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+          'build',
+          '--file', 'Dockerfile.debug',
+          '--tag', 'gcr.io/$PROJECT_ID/sharetribe',
+          '--label', 'build-id=$BUILD_ID',
+          '--cache-from', 'gcr.io/$PROJECT_ID/sharetribe',
+          '.'
+        ]
+
+images: ['gcr.io/$PROJECT_ID/sharetribe']

@@ -1,0 +1,83 @@
+# install
+#   ruby 2.3.4
+FROM ruby:2.3.4
+
+# install
+#   mysql-client 5.5.59
+#   sphinx 2.2.9
+#   imagemagick 6.8.9
+#   nginx 1.6.2
+ARG DEBIAN_FRONTEND=noninteractive
+RUN echo "deb http://ftp.au.debian.org/debian jessie-backports main" > /etc/apt/sources.list.d/jessie-backports.list \
+    && apt-get update \
+    && apt-get install -y \
+        mysql-client \
+        sphinxsearch \
+        imagemagick \
+        nginx
+
+# define user
+RUN useradd --user-group --create-home --shell /bin/bash app
+
+# define app_root
+ENV APP_ROOT /opt/app
+RUN mkdir -p $APP_ROOT \
+    && chown app $APP_ROOT
+
+#define build context
+USER app
+WORKDIR $APP_ROOT
+
+# install
+#   bundler
+#   rubygems
+ENV RAILS_ENV production
+COPY --chown=app Gemfile .
+COPY --chown=app Gemfile.lock .
+RUN gem install bundler \
+  && bundle install --deployment --without test,development
+
+# install
+#   nodejs 7.8
+#   npm packages
+ENV NODE_ENV production
+ENV NODE_VERSION 7.8
+RUN mkdir client \
+            client/customloaders \
+            client/customloaders/customfileloader
+COPY --chown=app package.json .
+COPY --chown=app client/package.json ./client/
+COPY --chown=app client/customloaders/customfileloader ./client/customloaders/customfileloader
+RUN ["/bin/bash", "-c", \
+      "curl -o- https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash \
+        && source ~/.nvm/nvm.sh \
+        && nvm install $NODE_VERSION \
+        && nvm alias default $NODE_VERSION \
+        && nvm use default \
+        && npm install"]
+
+# copy src
+COPY --chown=app . .
+
+# compile assets
+RUN ["/bin/bash", "-c", \
+      "source ~/.nvm/nvm.sh \
+        && script/prepare-assets.sh"]
+
+# define volumes
+#   sphinx indices
+#   paperclip uploads
+#   rails log
+#   rails tmp
+RUN mkdir -p $APP_ROOT/db/sphinx \
+              $APP_ROOT/public/system \
+              $APP_ROOT/log \
+              $APP_ROOT/tmp
+VOLUME [ "$APP_ROOT/db/sphinx", \
+          "$APP_ROOT/public/system", \
+          "$APP_ROOT/log", \
+          "$APP_ROOT/tmp"]
+
+CMD ["script/startup.sh"]
+
+EXPOSE 3000
